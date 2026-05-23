@@ -1,0 +1,53 @@
+name: Sync Target GitHub Commits
+
+on:
+  schedule:
+    # 每天北京时间 23:50 执行 (对应 UTC 时间 15:50)
+    - cron: '50 15 * * *'
+  workflow_dispatch: # 允许手动点击运行，方便测试
+
+permissions:
+  contents: write # 赋予 Action 推送代码到当前仓库的权限（必须）
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fetch and Sync Commits
+        env:
+          TARGET_USER: "cnlimiter" # 例如: torvalds
+          YOUR_EMAIL: "jiangchen_a@163.com" # 例如: anotherj1@example.com
+          YOUR_NAME: "Another" # 你的名字
+        run: |
+          # 1. 获取 UTC 格式的当天日期（因为 GitHub API 返回的时间是 UTC 标准时间）
+          TODAY_UTC=$(date -u +"%Y-%m-%d")
+          
+          echo "正在查询 $TARGET_USER 在 $TODAY_UTC (UTC) 的提交记录..."
+          
+          # 2. 使用 --arg 将日期安全地传入 jq，避免引号冲突
+          COMMIT_COUNT=$(curl -s "https://api.github.com/users/${TARGET_USER}/events/public" | \
+            jq -r --arg date "$TODAY_UTC" '[.[] | select(.type=="PushEvent" and (.created_at | startswith($date)))] | map(.payload.size) | add // 0')
+          
+          echo "目标用户今天共提交了 $COMMIT_COUNT 次。"
+          
+          # 3. 如果数量大于 0，则生成空提交
+          if [ "$COMMIT_COUNT" -gt 0 ]; then
+            git config --local user.email "$YOUR_EMAIL"
+            git config --local user.name "$YOUR_NAME"
+          
+            # 循环生成空提交
+            for i in $(seq 1 $COMMIT_COUNT); do
+              git commit --allow-empty -m "sync auto commit $i from $TARGET_USER"
+            done
+          
+            # 推送到当前仓库
+            git push
+            echo "同步成功！已推送 $COMMIT_COUNT 个空提交。"
+          else
+            echo "目标用户今天没有提交，脚本退出。"
+          fi

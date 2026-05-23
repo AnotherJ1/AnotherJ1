@@ -1,0 +1,93 @@
+name: 🌿 Backfill Natural Contributions (分批版)
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_date:
+        description: '开始日期 (YYYY-MM-DD)'
+        required: true
+        default: '2023-02-24'
+      end_date:
+        description: '结束日期 (YYYY-MM-DD)'
+        required: true
+        default: '2024-02-23'
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Git
+        run: |
+          git config --local user.name "AnotherJ1"
+          git config --local user.email "619243422@qq.com"
+
+      - name: Backfill Contributions (与日常完全相同规则)
+        shell: python
+        run: |
+          import random
+          from datetime import datetime, timedelta
+          import os
+
+          MESSAGES = [
+              "chore: 日常维护和代码清理",
+              "docs: 更新 README 和项目文档",
+              "refactor: 重构代码结构提升可读性",
+              "feat: 记录新功能想法到待办",
+              "fix: 修复小 bug 和注释问题",
+              "style: 优化代码格式和排版",
+              "test: 补充单元测试用例",
+              "perf: 小幅性能优化",
+              "build: 更新依赖和构建说明",
+              "ci: 优化 GitHub Actions workflow",
+              "📝 daily development log update",
+              "🔧 工具脚本和小功能优化"
+          ]
+
+          start_str = "${{ inputs.start_date }}"
+          end_str = "${{ inputs.end_date }}"
+
+          start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
+          end_date = datetime.strptime(end_str, '%Y-%m-%d').date()
+
+          current = start_date
+          log_path = '.github/contributions.log'
+
+          while current <= end_date:
+              weekday = current.weekday()  # 0~4 工作日，5~6 周末
+              prob = 78 if weekday <= 4 else 38
+              
+              if random.random() * 100 < prob:
+                  num_commits = random.randint(1, 5)
+                  print(f"✅ {current} 活跃日 → 生成 {num_commits} 个 commit")
+                  
+                  for _ in range(num_commits):
+                      msg = random.choice(MESSAGES)
+                      hour = random.randint(8, 23)
+                      minute = random.randint(0, 59)
+                      commit_time = datetime.combine(current, datetime.min.time().replace(hour=hour, minute=minute))
+                      
+                      # 追加到日志
+                      with open(log_path, 'a', encoding='utf-8') as f:
+                          f.write(f"{current} {hour:02d}:{minute:02d} - {msg}\n")
+                      
+                      # 带日期 commit
+                      os.system(f'git add {log_path}')
+                      cmd = f'GIT_COMMITTER_DATE="{commit_time}" GIT_AUTHOR_DATE="{commit_time}" git commit -m "{msg}" --date="{commit_time}"'
+                      os.system(cmd)
+                      print(f"   → {commit_time.strftime('%Y-%m-%d %H:%M')} {msg}")
+              else:
+                  print(f"🛌 {current} 休息日")
+              
+              current += timedelta(days=1)
+
+          print("✅ 本批次回填完成！")
+
+      - name: Push all backfilled commits
+        run: git push

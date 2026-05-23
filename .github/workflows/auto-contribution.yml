@@ -1,0 +1,73 @@
+name: 🌿 Super Natural Contributions
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # 北京时间每天早上 10 点触发一次
+  workflow_dispatch:      # 允许手动测试
+
+jobs:
+  natural-commit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Git
+        run: |
+          git config --local user.name "AnotherJ1"
+          git config --local user.email "jiangchen_a@163.com"
+
+      - name: Generate Natural Commits
+        run: |
+          TODAY=$(date +%Y-%m-%d)
+          DAY_OF_WEEK=$(date +%u)  # 1=周一 ... 5=周五 6=周六 7=周日
+
+          # 工作日 78% 活跃，周末 38% 活跃 → 每周约 4.8 天
+          if [ "$DAY_OF_WEEK" -le 5 ]; then
+            PROB=78
+          else
+            PROB=38
+          fi
+
+          if [ $((RANDOM % 100)) -lt $PROB ]; then
+            echo "✅ 今天是活跃日！"
+            NUM_COMMITS=$((RANDOM % 5 + 1))
+            echo "本次将创建 $NUM_COMMITS 次 commit"
+
+            for i in $(seq 1 $NUM_COMMITS); do
+              # 12 条真实开发消息
+              MESSAGES=(
+                "chore: 日常维护和代码清理"
+                "docs: 更新 README 和项目文档"
+                "refactor: 重构代码结构提升可读性"
+                "feat: 记录新功能想法到待办"
+                "fix: 修复小 bug 和注释问题"
+                "style: 优化代码格式和排版"
+                "test: 补充单元测试用例"
+                "perf: 小幅性能优化"
+                "build: 更新依赖和构建说明"
+                "ci: 优化 GitHub Actions workflow"
+                "📝 daily development log update"
+                "🔧 工具脚本和小功能优化"
+              )
+              MSG=${MESSAGES[$((RANDOM % ${#MESSAGES[@]}))]}
+
+              # 记录到日志
+              echo "$TODAY $(date +%H:%M) - $MSG" >> .github/contributions.log
+
+              # 随机当天时间（8:00~23:00）
+              RANDOM_HOUR=$((RANDOM % 16 + 8))
+              RANDOM_MIN=$((RANDOM % 60))
+              COMMIT_DATE="$TODAY $RANDOM_HOUR:$RANDOM_MIN:00"
+
+              git add .github/contributions.log
+              GIT_COMMITTER_DATE="$COMMIT_DATE" git commit -m "$MSG" --date="$COMMIT_DATE"
+            done
+          else
+            echo "🛌 今天休息，不 commit"
+          fi
+
+      - name: Push changes
+        run: git push

@@ -1,0 +1,44 @@
+name: Daily Clean History Sync (Master - No Tags)
+
+on:
+  schedule:
+    - cron: '0 0 * * *'     # 每天北京时间早上 8 点自动运行
+  workflow_dispatch:        # 可手动测试
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure Git author
+        run: |
+          git config user.name "AnotherJ1"
+          git config user.email "619243422@qq.com"
+
+      - name: Fetch ONLY master (no tags, no extra branches)
+        run: |
+          git remote rm upstream 2>/dev/null || true
+          git remote add upstream https://github.com/yangzongzhuan/RuoYi.git
+          git fetch upstream master --no-tags --prune
+
+      - name: Rebuild clean history（完全中性消息）
+        run: |
+          git checkout --orphan temp
+          git add -A
+          git commit -m "Initial commit"
+
+          git rev-list --reverse upstream/master | while read -r sha; do
+            DATE=$(git show -s --format=%aI "$sha")
+            git commit --allow-empty -m "Update" --date="$DATE"
+          done
+
+          git branch -D main 2>/dev/null || true
+          git branch -m main
+          git push -f origin main
+
+      - name: Aggressive cleanup
+        run: git gc --aggressive --prune=now
